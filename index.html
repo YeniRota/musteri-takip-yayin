@@ -28,6 +28,9 @@
 
   <h2>Müşterilerim</h2>
   <button id="yedek-indir" type="button">Yedeği İndir</button>
+  <button id="yedek-yukle" type="button">Yedekten Geri Yükle</button>
+  <input id="yedek-dosyasi" type="file" accept=".json,application/json" hidden>
+  <p>Geri yükleme mevcut müşterileri korur. Aynı ad ve nota sahip kayıtlar tekrar eklenmez.</p>
   <p>Yedek, kaydedilmiş tüm müşterileri ve notları içerir. Henüz kaydetmediğin değişiklikler yedeğe alınmaz.</p>
   <p>
     <label for="musteri-arama">Müşteri adına göre ara</label><br>
@@ -46,6 +49,8 @@
     const aramaAlani = document.getElementById('musteri-arama');
     const durum = document.getElementById('kayit-durumu');
     const yedekDugmesi = document.getElementById('yedek-indir');
+    const yukleDugmesi = document.getElementById('yedek-yukle');
+    const yedekDosyasi = document.getElementById('yedek-dosyasi');
     const depolamaAnahtari = 'crm-musteriler';
     let musteriler = [];
     let duzenlenenMusteri = null;
@@ -75,6 +80,63 @@
     }
 
     aramaAlani.addEventListener('input', listeyiGoster);
+
+    yukleDugmesi.addEventListener('click', function () {
+      yedekDosyasi.click();
+    });
+
+    yedekDosyasi.addEventListener('change', async function () {
+      const dosya = yedekDosyasi.files[0];
+      if (!dosya) return;
+      yukleDugmesi.disabled = true;
+      try {
+        let yedek;
+        try {
+          yedek = JSON.parse(await dosya.text());
+          if (!yedek || yedek.uygulama !== 'musteri-takip' || yedek.surum !== 1 ||
+              !Array.isArray(yedek.musteriler) || !yedek.musteriler.every(function (musteri) {
+                return musteri && typeof musteri.ad === 'string' && musteri.ad.trim() !== '' &&
+                  typeof musteri.not === 'string';
+              })) {
+            throw new Error('Geçersiz yedek.');
+          }
+        } catch (hata) {
+          durum.textContent = 'Dosya okunamadı veya geçerli bir müşteri yedeği değil. Kayıtların değiştirilmedi.';
+          return;
+        }
+
+        // Önce dosyanın tamamını doğrular, ardından mevcut listeyle birleştirir.
+        const yeniListe = musteriler.slice();
+        const bilinenler = new Set(musteriler.map(function (musteri) {
+          return JSON.stringify([musteri.ad, musteri.not]);
+        }));
+        for (const musteri of yedek.musteriler) {
+          const anahtar = JSON.stringify([musteri.ad, musteri.not]);
+          if (!bilinenler.has(anahtar)) {
+            yeniListe.push({ ad: musteri.ad, not: musteri.not });
+            bilinenler.add(anahtar);
+          }
+        }
+        const eklenen = yeniListe.length - musteriler.length;
+        if (eklenen === 0) {
+          durum.textContent = 'Yedekte eklenecek yeni müşteri bulunmuyor. Mevcut kayıtlar korundu.';
+          return;
+        }
+        try {
+          localStorage.setItem(depolamaAnahtari, JSON.stringify(yeniListe));
+        } catch (hata) {
+          durum.textContent = 'Yedek kaydedilemedi. Tarayıcının depolama alanı dolu veya kapalı olabilir. Mevcut kayıtların korundu.';
+          return;
+        }
+        musteriler = yeniListe;
+        aramaAlani.value = '';
+        listeyiGoster();
+        durum.textContent = eklenen + ' müşteri yedekten eklendi. Mevcut kayıtlar korundu.';
+      } finally {
+        yedekDosyasi.value = '';
+        yukleDugmesi.disabled = false;
+      }
+    });
 
     yedekDugmesi.addEventListener('click', function () {
       // Arama sonuçları yerine kayıtlı müşterilerin tamamını dosyaya yazar.
@@ -176,6 +238,7 @@
       durum.textContent = 'Saklanan kayıtlar okunamadı. Mevcut kayıtları korumak için yeni kayıt ekleme durduruldu.';
       form.querySelector('button').disabled = true;
       yedekDugmesi.disabled = true;
+      yukleDugmesi.disabled = true;
     }
 
     // Kaydet düğmesine basıldığında bilgileri alıp listeye ekler.
