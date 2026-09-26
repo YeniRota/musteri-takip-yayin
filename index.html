@@ -27,6 +27,8 @@
   </form>
 
   <h2>Müşterilerim</h2>
+  <button id="yedek-indir" type="button">Yedeği İndir</button>
+  <p>Yedek, kaydedilmiş tüm müşterileri ve notları içerir. Henüz kaydetmediğin değişiklikler yedeğe alınmaz.</p>
   <p>
     <label for="musteri-arama">Müşteri adına göre ara</label><br>
     <input id="musteri-arama" type="search" placeholder="Bir müşteri adı yaz">
@@ -43,6 +45,7 @@
     const liste = document.getElementById('musteri-listesi');
     const aramaAlani = document.getElementById('musteri-arama');
     const durum = document.getElementById('kayit-durumu');
+    const yedekDugmesi = document.getElementById('yedek-indir');
     const depolamaAnahtari = 'crm-musteriler';
     let musteriler = [];
     let duzenlenenMusteri = null;
@@ -72,6 +75,32 @@
     }
 
     aramaAlani.addEventListener('input', listeyiGoster);
+
+    yedekDugmesi.addEventListener('click', function () {
+      // Arama sonuçları yerine kayıtlı müşterilerin tamamını dosyaya yazar.
+      const yedek = {
+        uygulama: 'musteri-takip',
+        surum: 1,
+        olusturulmaZamani: new Date().toISOString(),
+        musteriler: musteriler
+      };
+      let dosyaAdresi;
+      const baglanti = document.createElement('a');
+      try {
+        const dosya = new Blob([JSON.stringify(yedek, null, 2)], { type: 'application/json;charset=utf-8' });
+        dosyaAdresi = URL.createObjectURL(dosya);
+        baglanti.href = dosyaAdresi;
+        baglanti.download = 'musteri-yedegi-' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+        document.body.append(baglanti);
+        baglanti.click();
+        durum.textContent = musteriler.length + ' müşteri için yedek indirme isteği gönderildi. Tarayıcının indirilenler bölümünü kontrol et.';
+      } catch (hata) {
+        durum.textContent = 'Yedek dosyası hazırlanamadı. Kayıtların değiştirilmedi; tekrar deneyebilirsin.';
+      } finally {
+        baglanti.remove();
+        if (dosyaAdresi) setTimeout(function () { URL.revokeObjectURL(dosyaAdresi); }, 60000);
+      }
+    });
 
     vazgecDugmesi.addEventListener('click', function () {
       formuSifirla();
@@ -146,6 +175,7 @@
     } catch (hata) {
       durum.textContent = 'Saklanan kayıtlar okunamadı. Mevcut kayıtları korumak için yeni kayıt ekleme durduruldu.';
       form.querySelector('button').disabled = true;
+      yedekDugmesi.disabled = true;
     }
 
     // Kaydet düğmesine basıldığında bilgileri alıp listeye ekler.
