@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Müşteri Takibi</title>
+</head>
+<body>
+  <!-- Sayfanın ana başlığı. -->
+  <h1>Müşteri Takibi</h1>
+  <p>Müşterilerimi ve onlarla ilgili notlarımı burada takip edeceğim.</p>
+
+  <h2 id="form-basligi">Yeni Müşteri</h2>
+  <form id="musteri-formu">
+    <!-- Etiketler, her kutuya hangi bilginin yazılacağını açıklar. -->
+    <p>
+      <label for="musteri-adi">Müşteri adı (zorunlu)</label><br>
+      <input id="musteri-adi" name="musteri-adi" type="text" required>
+    </p>
+    <p>
+      <label for="musteri-notu">Müşteri notu</label><br>
+      <textarea id="musteri-notu" name="musteri-notu" rows="4" cols="35"></textarea>
+    </p>
+    <button id="kaydet-dugmesi" type="submit">Müşteriyi Kaydet</button>
+    <button id="vazgec-dugmesi" type="button" hidden>Düzenlemeden Vazgeç</button>
+    <p>Kayıtlar bu bilgisayarda, kullandığın tarayıcıda saklanır. Tarayıcı verilerini temizlersen kayıtlar silinebilir.</p>
+  </form>
+
+  <h2>Müşterilerim</h2>
+  <p id="bos-liste">Henüz müşteri eklenmedi.</p>
+  <ul id="musteri-listesi"></ul>
+  <p id="kayit-durumu" role="status"></p>
+
+  <script>
+    const form = document.getElementById('musteri-formu');
+    const adAlani = document.getElementById('musteri-adi');
+    const notAlani = document.getElementById('musteri-notu');
+    const liste = document.getElementById('musteri-listesi');
+    const durum = document.getElementById('kayit-durumu');
+    const depolamaAnahtari = 'crm-musteriler';
+    let musteriler = [];
+    let duzenlenenMusteri = null;
+    const formBasligi = document.getElementById('form-basligi');
+    const kaydetDugmesi = document.getElementById('kaydet-dugmesi');
+    const vazgecDugmesi = document.getElementById('vazgec-dugmesi');
+
+    function formuSifirla() {
+      duzenlenenMusteri = null;
+      form.reset();
+      adAlani.setCustomValidity('');
+      formBasligi.textContent = 'Yeni Müşteri';
+      kaydetDugmesi.textContent = 'Müşteriyi Kaydet';
+      vazgecDugmesi.hidden = true;
+    }
+
+    function listeyiGoster() {
+      liste.replaceChildren();
+      document.getElementById('bos-liste').hidden = musteriler.length > 0;
+      musteriler.forEach(listeyeEkle);
+    }
+
+    vazgecDugmesi.addEventListener('click', function () {
+      formuSifirla();
+      durum.textContent = 'Düzenlemeden vazgeçildi. Kayıt değiştirilmedi.';
+      adAlani.focus();
+    });
+
+    function listeyeEkle(musteri) {
+      const kayit = document.createElement('li');
+      const adYazisi = document.createElement('strong');
+      const notYazisi = document.createElement('p');
+      // Girilen bilgileri sayfada düz yazı olarak gösterir.
+      adYazisi.textContent = musteri.ad;
+      notYazisi.textContent = musteri.not || 'Not eklenmedi.';
+      notYazisi.style.whiteSpace = 'pre-wrap';
+      kayit.append(adYazisi, notYazisi);
+
+      const duzenleDugmesi = document.createElement('button');
+      duzenleDugmesi.type = 'button';
+      duzenleDugmesi.textContent = 'Düzenle';
+      duzenleDugmesi.setAttribute('aria-label', musteri.ad + ' adlı müşteriyi düzenle');
+      duzenleDugmesi.addEventListener('click', function () {
+        // Seçilen müşterinin bilgilerini yazı alanlarına geri getirir.
+        duzenlenenMusteri = musteri;
+        adAlani.value = musteri.ad;
+        notAlani.value = musteri.not;
+        adAlani.setCustomValidity('');
+        formBasligi.textContent = 'Müşteriyi Düzenle';
+        kaydetDugmesi.textContent = 'Değişiklikleri Kaydet';
+        vazgecDugmesi.hidden = false;
+        durum.textContent = musteri.ad + ' düzenleniyor.';
+        adAlani.focus();
+      });
+      kayit.append(duzenleDugmesi, document.createTextNode(' '));
+
+      const silDugmesi = document.createElement('button');
+      silDugmesi.type = 'button';
+      silDugmesi.textContent = 'Sil';
+      silDugmesi.setAttribute('aria-label', musteri.ad + ' adlı müşteriyi sil');
+      silDugmesi.addEventListener('click', function () {
+        // Yalnızca bu düğmenin ait olduğu müşteri kaydını çıkarır.
+        const yeniListe = musteriler.filter(function (kayitliMusteri) {
+          return kayitliMusteri !== musteri;
+        });
+        try {
+          localStorage.setItem(depolamaAnahtari, JSON.stringify(yeniListe));
+        } catch (hata) {
+          durum.textContent = 'Müşteri silinemedi. Tarayıcının depolama alanına erişilemiyor. Kayıt listede duruyor.';
+          return;
+        }
+        musteriler = yeniListe;
+        if (duzenlenenMusteri === musteri) formuSifirla();
+        kayit.remove();
+        document.getElementById('bos-liste').hidden = musteriler.length > 0;
+        durum.textContent = musteri.ad + ' silindi.';
+      });
+      kayit.append(silDugmesi);
+      liste.append(kayit);
+      document.getElementById('bos-liste').hidden = true;
+    }
+
+    // Sayfa açılınca tarayıcıda saklanan müşterileri geri yükler.
+    try {
+      const saklanan = localStorage.getItem(depolamaAnahtari);
+      const veriler = saklanan === null ? [] : JSON.parse(saklanan);
+      if (!Array.isArray(veriler) || !veriler.every(function (musteri) {
+        return musteri && typeof musteri.ad === 'string' && typeof musteri.not === 'string';
+      })) {
+        throw new Error('Kayıt biçimi geçersiz.');
+      }
+      musteriler = veriler;
+      musteriler.forEach(listeyeEkle);
+    } catch (hata) {
+      durum.textContent = 'Saklanan kayıtlar okunamadı. Mevcut kayıtları korumak için yeni kayıt ekleme durduruldu.';
+      form.querySelector('button').disabled = true;
+    }
+
+    // Kaydet düğmesine basıldığında bilgileri alıp listeye ekler.
+    form.addEventListener('submit', function (olay) {
+      olay.preventDefault();
+      const ad = adAlani.value.trim();
+      const not = notAlani.value.trim();
+
+      if (!ad) {
+        adAlani.setCustomValidity('Lütfen müşteri adını yaz.');
+        adAlani.reportValidity();
+        return;
+      }
+
+      const musteri = { ad: ad, not: not };
+      // Düzenleme sırasında yeni kayıt eklemek yerine seçilen kaydı değiştirir.
+      const yeniListe = duzenlenenMusteri
+        ? musteriler.map(function (kayitliMusteri) {
+            return kayitliMusteri === duzenlenenMusteri ? musteri : kayitliMusteri;
+          })
+        : musteriler.concat(musteri);
+      // Önce tarayıcıya kaydeder; başarılı olursa ekranda gösterir.
+      try {
+        localStorage.setItem(depolamaAnahtari, JSON.stringify(yeniListe));
+      } catch (hata) {
+        durum.textContent = 'Müşteri kaydedilemedi. Tarayıcının depolama alanı dolu veya kullanıma kapalı olabilir. Yazdığın bilgiler alanlarda duruyor.';
+        return;
+      }
+      musteriler = yeniListe;
+      listeyiGoster();
+      durum.textContent = ad + ' kaydedildi.';
+      formuSifirla();
+      adAlani.focus();
+    });
+
+    adAlani.addEventListener('input', function () {
+      adAlani.setCustomValidity('');
+    });
+  </script>
+</body>
+</html>
