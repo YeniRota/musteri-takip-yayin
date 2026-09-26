@@ -27,7 +27,12 @@
   </form>
 
   <h2>Müşterilerim</h2>
+  <p>
+    <label for="musteri-arama">Müşteri adına göre ara</label><br>
+    <input id="musteri-arama" type="search" placeholder="Bir müşteri adı yaz">
+  </p>
   <p id="bos-liste">Henüz müşteri eklenmedi.</p>
+  <p id="arama-sonucu" role="status" hidden>Aramana uygun müşteri bulunamadı.</p>
   <ul id="musteri-listesi"></ul>
   <p id="kayit-durumu" role="status"></p>
 
@@ -36,6 +41,7 @@
     const adAlani = document.getElementById('musteri-adi');
     const notAlani = document.getElementById('musteri-notu');
     const liste = document.getElementById('musteri-listesi');
+    const aramaAlani = document.getElementById('musteri-arama');
     const durum = document.getElementById('kayit-durumu');
     const depolamaAnahtari = 'crm-musteriler';
     let musteriler = [];
@@ -56,8 +62,16 @@
     function listeyiGoster() {
       liste.replaceChildren();
       document.getElementById('bos-liste').hidden = musteriler.length > 0;
-      musteriler.forEach(listeyeEkle);
+      // Türkçe büyük/küçük harfleri dikkate alarak eşleşen adları gösterir.
+      const aranan = aramaAlani.value.trim().toLocaleLowerCase('tr-TR');
+      const bulunanlar = musteriler.filter(function (musteri) {
+        return musteri.ad.toLocaleLowerCase('tr-TR').includes(aranan);
+      });
+      document.getElementById('arama-sonucu').hidden = musteriler.length === 0 || bulunanlar.length > 0;
+      bulunanlar.forEach(listeyeEkle);
     }
+
+    aramaAlani.addEventListener('input', listeyiGoster);
 
     vazgecDugmesi.addEventListener('click', function () {
       formuSifirla();
@@ -110,8 +124,7 @@
         }
         musteriler = yeniListe;
         if (duzenlenenMusteri === musteri) formuSifirla();
-        kayit.remove();
-        document.getElementById('bos-liste').hidden = musteriler.length > 0;
+        listeyiGoster();
         durum.textContent = musteri.ad + ' silindi.';
       });
       kayit.append(silDugmesi);
@@ -129,7 +142,7 @@
         throw new Error('Kayıt biçimi geçersiz.');
       }
       musteriler = veriler;
-      musteriler.forEach(listeyeEkle);
+      listeyiGoster();
     } catch (hata) {
       durum.textContent = 'Saklanan kayıtlar okunamadı. Mevcut kayıtları korumak için yeni kayıt ekleme durduruldu.';
       form.querySelector('button').disabled = true;
